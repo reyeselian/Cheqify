@@ -1,7 +1,4 @@
-import { Router } from "express";
-import multer from "multer";
-import { CloudinaryStorage } from "multer-storage-cloudinary";
-import cloudinary from "../config/cloudinary";
+import express from "express";
 import {
   listCheques,
   createCheque,
@@ -12,29 +9,23 @@ import {
   restoreCheque,
   permanentDeleteCheque,
 } from "../controllers/chequeController";
+import { protect } from "../middleware/authMiddleware";
+import upload from "../middleware/multer";
 
-const router = Router();
+const router = express.Router();
 
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: async () => ({
-    folder: "cheqify/cheques",
-    allowed_formats: ["jpg", "jpeg", "png", "webp"],
-    resource_type: "image",
-  }) as any,
-});
-const upload = multer({ storage });
+// ✅ Todas las rutas protegidas
+router.get("/", protect, listCheques);
+router.post("/", protect, upload.single("imagen"), createCheque);
 
-// 📦 Rutas eliminados
-router.get("/deleted/all", listDeletedCheques);
-router.put("/restore/:id", restoreCheque);
-router.delete("/permanent/:id", permanentDeleteCheque);
+// ⚠️ Estas rutas específicas deben ir ANTES de "/:id"
+router.get("/deleted/all", protect, listDeletedCheques);
+router.put("/restore/:id", protect, restoreCheque);
+router.delete("/permanent/:id", protect, permanentDeleteCheque);
 
-// 📋 Rutas principales
-router.get("/", listCheques);
-router.post("/", upload.single("imagen"), createCheque);
-router.put("/:id", upload.single("imagen"), updateCheque);
-router.get("/:id", getCheque);
-router.delete("/:id", deleteCheque);
+// 🧾 CRUD principal
+router.get("/:id", protect, getCheque);
+router.put("/:id", protect, upload.single("imagen"), updateCheque);
+router.delete("/:id", protect, deleteCheque);
 
 export default router;

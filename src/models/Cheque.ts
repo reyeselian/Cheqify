@@ -5,36 +5,35 @@ export interface ICheque extends Document {
   banco: string;
   beneficiario: string;
   monto: number;
-  estado: "pendiente" | "cobrado" | "devuelto";
-  corbata: number;
+  estado: string;
   firmadoPor?: string;
-  notas?: string;
   fechaCheque?: Date;
   fechaDeposito?: Date;
-  imagen?: string; // 📸 URL de Cloudinary
-  createdAt?: Date;
-  updatedAt?: Date;
+  notas?: string;
+  imagen?: string;
+  usuario: mongoose.Schema.Types.ObjectId; // referencia al usuario
 }
 
-const chequeSchema: Schema = new Schema(
+const chequeSchema = new Schema<ICheque>(
   {
     numero: { type: String, required: true },
     banco: { type: String, required: true },
     beneficiario: { type: String, required: true },
     monto: { type: Number, required: true },
-    estado: {
-      type: String,
-      enum: ["pendiente", "cobrado", "devuelto"],
-      default: "pendiente",
-    },
-    corbata: { type: Number, default: 0 },
+    estado: { type: String, default: "pendiente" },
     firmadoPor: { type: String },
-    notas: { type: String },
-    fechaCheque: { type: Date, default: Date.now },
+    fechaCheque: { type: Date },
     fechaDeposito: { type: Date },
-    imagen: { type: String }, // 📸 URL de la imagen en Cloudinary
+    notas: { type: String },
+    imagen: { type: String },
+    usuario: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true, // 🔹 causa del error, ahora lo llenaremos correctamente
+    },
   },
   { timestamps: true }
 );
 
-export default mongoose.model<ICheque>("Cheque", chequeSchema);
+const Cheque = mongoose.model<ICheque>("Cheque", chequeSchema);
+export default Cheque;
