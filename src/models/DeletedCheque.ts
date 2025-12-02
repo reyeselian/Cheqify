@@ -5,14 +5,15 @@ export interface IDeletedCheque extends Document {
   banco: string;
   beneficiario: string;
   monto: number;
-  estado: "pendiente" | "cobrado" | "anulado";
+  estado: "pendiente" | "cobrado" | "anulado" | "devuelto";
   corbata?: number;
   firmadoPor?: string;
   notas?: string;
   fechaCheque?: Date;
   fechaDeposito?: Date;
-  imagen?: string;       // ✅ Imagen subida a Cloudinary (opcional)
-  eliminadoEn?: Date;    // ✅ Fecha de eliminación
+  imagen?: string;       // Imagen subida a Cloudinary (opcional)
+  eliminadoEn?: Date;    // Fecha de eliminación
+  usuario: mongoose.Types.ObjectId; // 👈 Asociado al usuario autenticado
 }
 
 const DeletedChequeSchema = new Schema<IDeletedCheque>(
@@ -23,7 +24,7 @@ const DeletedChequeSchema = new Schema<IDeletedCheque>(
     monto: { type: Number, required: true },
     estado: {
       type: String,
-      enum: ["pendiente", "cobrado", "anulado"],
+      enum: ["pendiente", "cobrado", "anulado", "devuelto"],
       default: "pendiente",
     },
     corbata: { type: Number, default: 0 },
@@ -31,10 +32,23 @@ const DeletedChequeSchema = new Schema<IDeletedCheque>(
     notas: { type: String },
     fechaCheque: { type: Date },
     fechaDeposito: { type: Date },
-    imagen: { type: String }, // ✅ URL de la imagen en Cloudinary
+    imagen: { type: String },
     eliminadoEn: { type: Date, default: Date.now },
+
+    // 👇 Campo clave para filtrar por usuario autenticado
+    usuario: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
   },
-  { timestamps: true } // ✅ Añade createdAt / updatedAt por consistencia
+  {
+    timestamps: true, // createdAt / updatedAt
+    collection: "deletedcheques", // 👈 asegura nombre consistente
+  }
 );
 
-export default mongoose.model<IDeletedCheque>("DeletedCheque", DeletedChequeSchema);
+export default mongoose.model<IDeletedCheque>(
+  "DeletedCheque",
+  DeletedChequeSchema
+);
