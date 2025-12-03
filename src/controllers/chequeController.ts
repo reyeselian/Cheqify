@@ -22,19 +22,41 @@ export const listCheques = async (req: Request, res: Response) => {
 ========================================================= */
 export const createCheque = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
-    const data = req.body;
+    const user = (req as any).user || {};
+    const userId = user.id;
+
+    const empresaNombre = user.empresa || "";
+    const companyFallback = user.company ? String(user.company) : "";
+    const companyValue = empresaNombre || companyFallback || "Sin empresa";
+
+    if (!userId) {
+      return res.status(401).json({ message: "Usuario no autenticado" });
+    }
+
+    // ⬇️ Ignoramos cualquier fechaCheque enviada desde el frontend
+    const { fechaCheque, ...data } = req.body;
+
     const imagen = req.file ? (req.file as any).path : undefined;
 
-    const nuevoCheque = new Cheque({ ...data, usuario: userId, imagen });
+    const nuevoCheque = new Cheque({
+      ...data,
+      fechaCheque: new Date(),  // 🕒 siempre la fecha/hora actual del servidor
+      usuario: userId,
+      company: companyValue,
+      imagen,
+    });
+
     await nuevoCheque.save();
 
     res.status(201).json(nuevoCheque);
   } catch (err: any) {
     console.error("Error al crear cheque:", err);
-    res.status(500).json({ message: "Error al crear el cheque", error: err.message });
+    res
+      .status(500)
+      .json({ message: "Error al crear el cheque", error: err.message });
   }
 };
+
 
 /* =========================================================
    🔍 OBTENER CHEQUE POR ID
@@ -65,7 +87,6 @@ export const updateCheque = async (req: Request, res: Response) => {
     if (!cheque) return res.status(404).json({ message: "Cheque no encontrado" });
 
     if (req.file) {
-      // Eliminar imagen anterior de Cloudinary si existe
       if (cheque.imagen) {
         const publicId = extractPublicId(cheque.imagen);
         if (publicId) await cloudinary.uploader.destroy(publicId);
@@ -95,7 +116,6 @@ export const deleteCheque = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Cheque no encontrado" });
     }
 
-    // Crear copia en la colección de eliminados
     const deleted = new DeletedCheque({
       ...cheque.toObject(),
       usuario: userId,
@@ -113,21 +133,30 @@ export const deleteCheque = async (req: Request, res: Response) => {
 };
 
 /* =========================================================
-   🔄 RESTAURAR CHEQUE
+   🔄 RESTAURAR CHEQUE (ÚNICO LUGAR MODIFICADO)
 ========================================================= */
 export const restoreCheque = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
-    const deleted = await DeletedCheque.findOne({ _id: req.params.id, usuario: userId });
+    const user = (req as any).user || {};
+    const userId = user.id;
+
+    const empresaNombre = user.empresa || "";
+    const companyFallback = user.company ? String(user.company) : "";
+    const companyValue = empresaNombre || companyFallback || "Sin empresa";
+
+    const deleted = await DeletedCheque.findOne({
+      _id: req.params.id,
+      usuario: userId,
+    });
 
     if (!deleted) {
       return res.status(404).json({ message: "Cheque no encontrado en eliminados" });
     }
 
-    // Restaurar a colección principal
     const restored = new Cheque({
       ...deleted.toObject(),
       usuario: userId,
+      company: companyValue,      // ← NECESARIO PARA EVITAR EL ERROR
       restoredAt: new Date(),
     });
 
@@ -146,7 +175,6 @@ export const restoreCheque = async (req: Request, res: Response) => {
 ========================================================= */
 export const listDeletedCheques = async (req: Request, res: Response) => {
   try {
-    // 📘 Verificamos si el middleware "protect" está pasando el usuario
     const userId = (req as any).user?.id;
     console.log("🧠 Solicitud para listar cheques eliminados");
 
@@ -157,12 +185,12 @@ export const listDeletedCheques = async (req: Request, res: Response) => {
 
     console.log("👤 Usuario autenticado ID:", userId);
 
-    // 📘 Buscamos cheques eliminados del usuario autenticado
-    const deletedCheques = await DeletedCheque.find({ usuario: userId }).sort({ deletedAt: -1 });
+    const deletedCheques = await DeletedCheque.find({ usuario: userId }).sort({
+      deletedAt: -1,
+    });
 
     console.log("📄 Cheques eliminados encontrados:", deletedCheques.length);
 
-    // 📘 Mostramos los primeros si existen
     if (deletedCheques.length > 0) {
       console.log("🔹 Ejemplo primer cheque eliminado:", deletedCheques[0]);
     } else {
@@ -176,20 +204,21 @@ export const listDeletedCheques = async (req: Request, res: Response) => {
   }
 };
 
-
 /* =========================================================
    ❌ ELIMINAR PERMANENTEMENTE
 ========================================================= */
 export const permanentDeleteCheque = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?.id;
-    const cheque = await DeletedCheque.findOne({ _id: req.params.id, usuario: userId });
+    const cheque = await DeletedCheque.findOne({
+      _id: req.params.id,
+      usuario: userId,
+    });
 
     if (!cheque) {
       return res.status(404).json({ message: "Cheque no encontrado" });
     }
 
-    // Eliminar imagen asociada en Cloudinary
     if (cheque.imagen) {
       const publicId = extractPublicId(cheque.imagen);
       if (publicId) await cloudinary.uploader.destroy(publicId);
@@ -199,7 +228,9 @@ export const permanentDeleteCheque = async (req: Request, res: Response) => {
     res.json({ message: "Cheque eliminado permanentemente" });
   } catch (err) {
     console.error("Error al eliminar permanentemente cheque:", err);
-    res.status(500).json({ message: "Error al eliminar permanentemente el cheque" });
+    res.status(500).json({
+      message: "Error al eliminar permanentemente el cheque",
+    });
   }
 };
 

@@ -41,7 +41,8 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    const user = (await User.create({ empresa, email, password })) as IUserDoc;
+    // Crear el usuario con nombre de empresa (sin modelo Company)
+    const user = await User.create({ empresa, email, password }) as IUserDoc;
     const token = generateToken(user._id.toString());
 
     res.status(201).json({
@@ -69,7 +70,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const user = (await User.findOne({ email })) as IUserDoc | null;
+    const user = await User.findOne({ email }) as IUserDoc | null;
 
     if (!user) {
       res.status(401).json({ message: "Correo o contraseña incorrectos" });

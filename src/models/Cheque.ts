@@ -11,10 +11,10 @@ export interface ICheque extends Document {
   fechaDeposito?: Date;
   notas?: string;
   imagen?: string;
-  usuario: mongoose.Schema.Types.ObjectId;  // referencia al usuario que registró el cheque
-  company: mongoose.Schema.Types.ObjectId;   // referencia a la empresa
-  reminderSent?: boolean;                    // si ya se envió el recordatorio
-  reminderSentAt?: Date;                     // fecha en que se envió el recordatorio
+  usuario: mongoose.Schema.Types.ObjectId; // referencia al usuario que registró el cheque
+  company: string;                         // ✅ ahora guarda el nombre de la empresa
+  reminderSent?: boolean;                  // si ya se envió el recordatorio
+  reminderSentAt?: Date;                   // fecha en que se envió el recordatorio
 }
 
 const chequeSchema = new Schema<ICheque>(
@@ -37,11 +37,11 @@ const chequeSchema = new Schema<ICheque>(
       required: true,
     },
 
-    // 🔹 Nueva referencia a la empresa propietaria del cheque
+    // 🔹 Nombre de la empresa propietaria del cheque
     company: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Company",
+      type: String,
       required: true,
+      trim: true,
     },
 
     // 🔹 Campos de control del recordatorio por correo

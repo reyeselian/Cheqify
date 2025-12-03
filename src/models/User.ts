@@ -4,7 +4,8 @@ import bcrypt from "bcryptjs";
 export interface IUser extends Document {
   email: string;
   password: string;
-  empresa: string;
+  empresa: string; // nombre visible de la empresa
+  company: { type: Schema.Types.ObjectId, ref: "Company" }, // ✅ referencia al modelo Company
   matchPassword(enteredPassword: string): Promise<boolean>;
 }
 
@@ -26,6 +27,11 @@ const userSchema = new Schema<IUser>(
       type: String,
       required: true,
       trim: true,
+    },
+    company: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Company", // ✅ referencia al modelo de empresas
+      required: true,
     },
   },
   { timestamps: true }

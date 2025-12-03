@@ -1,13 +1,16 @@
-import { Schema, model } from "mongoose";
+import mongoose, { Schema, Document } from "mongoose";
 
-export interface ICompany {
+export interface ICompany extends Document {
   name: string;
-  notifyEmail: string; // correo donde se enviará el aviso
+  email: string;
 }
 
-const CompanySchema = new Schema<ICompany>({
-  name: { type: String, required: true },
-  notifyEmail: { type: String, required: true },
-});
+const companySchema = new Schema<ICompany>(
+  {
+    name: { type: String, required: true },
+    email: { type: String, required: true }, // correo de notificación
+  },
+  { timestamps: true }
+);
 
-export const Company = model<ICompany>("Company", CompanySchema);
+export default mongoose.model<ICompany>("Company", companySchema);
