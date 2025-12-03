@@ -1,9 +1,13 @@
 import nodemailer from "nodemailer";
 
+const port = Number(process.env.SMTP_PORT || 587);
+
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT || 587),
-  secure: String(process.env.SMTP_SECURE || "false") === "true",
+  port,
+  // secure = true solo si usas 465 o si lo fuerzas por variable
+  secure:
+    String(process.env.SMTP_SECURE || "false") === "true" || port === 465,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
@@ -19,6 +23,15 @@ export async function sendMail({
   subject: string;
   html: string;
 }) {
-  const from = process.env.MAIL_FROM || "cheqify.notificaciones@gmail.com.app>";
-  return transporter.sendMail({ from, to, subject, html });
+  const from =
+    process.env.MAIL_FROM || 'Cheqify <cheqify.notificaciones@gmail.com>';
+
+  return transporter.sendMail({
+    from,
+    to,
+    subject,
+    html,
+  });
 }
+
+export default transporter;
