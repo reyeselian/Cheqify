@@ -2,14 +2,10 @@
 import { DateTime } from "luxon";
 import Cheque, { ICheque } from "../models/Cheque";
 import { sendMail } from "../services/mailer";
-import { dailyDepositsTemplate } from "../services/emailTemplates";
+import { dailyDepositsTemplate } from "../templates/dailyDepositsTemplate";  // ✅ FIX
 
 const TZ = "America/Santo_Domingo";
 
-/**
- * Normaliza un nombre de empresa a un slug para variables de entorno:
- * "Super Col. Domba" -> "SUPER_COL_DOMBA"  =>  NOTIFY_SUPER_COL_DOMBA
- */
 function slugifyEmpresa(name: string): string {
   return name
     .normalize("NFD")
@@ -19,20 +15,11 @@ function slugifyEmpresa(name: string): string {
     .toUpperCase();
 }
 
-/**
- * Ejecuta el recordatorio de depósitos:
- * - Busca cheques con fechaDeposito = mañana (zona horaria RD)
- * - Estado pendiente (acepta "pendiente" y "Pendiente")
- * - No notificados (reminderSent !== true)
- * - Agrupa por nombre de empresa (company o empresa string)
- * - Envía un solo correo por empresa
- */
 export async function runDepositReminders() {
   const now = DateTime.now().setZone(TZ);
   const start = now.plus({ days: 1 }).startOf("day").toJSDate();
   const end = now.plus({ days: 1 }).endOf("day").toJSDate();
 
-  // 1️⃣ Buscar cheques pendientes para mañana que no se han notificado
   const cheques = (await Cheque.find({
     estado: { $in: ["pendiente", "Pendiente"] },
     reminderSent: { $ne: true },
@@ -44,9 +31,6 @@ export async function runDepositReminders() {
     return { found: 0, groups: 0, sent: 0 };
   }
 
-  // 2️⃣ Agrupar por NOMBRE de empresa
-  //    - Prioriza `cheque.company` si es string (nuevo esquema)
-  //    - Si no, usa `cheque.empresa` (compatibilidad hacia atrás)
   const porEmpresa = new Map<string, ICheque[]>();
   for (const ch of cheques) {
     const nombreEmpresa: string =
@@ -56,7 +40,7 @@ export async function runDepositReminders() {
 
     if (!nombreEmpresa) {
       console.warn(
-        `[Cheqify] Cheque ${String((ch as any)._id)} sin nombre de empresa (company/empresa). Saltando...`
+        `[Cheqify] Cheque ${String((ch as any)._id)} sin nombre de empresa.`
       );
       continue;
     }
@@ -66,18 +50,15 @@ export async function runDepositReminders() {
   }
 
   if (porEmpresa.size === 0) {
-    console.log("[Cheqify] No hay grupos válidos por empresa para mañana.");
+    console.log("[Cheqify] No hay grupos válidos para mañana.");
     return { found: cheques.length, groups: 0, sent: 0 };
   }
 
-  // 3️⃣ Enviar UN correo por empresa (por grupo)
   let sent = 0;
   for (const [companyName, lista] of porEmpresa.entries()) {
-    // 3.1 Determinar correo destino:
-    //     a) Variable específica por empresa: NOTIFY_<SLUG>
-    //     b) FALLBACK_NOTIFY_EMAIL del .env
     const slug = slugifyEmpresa(companyName);
     const specificEnvKey = `NOTIFY_${slug}`;
+
     const to =
       process.env[specificEnvKey] ||
       process.env.FALLBACK_NOTIFY_EMAIL ||
@@ -85,12 +66,11 @@ export async function runDepositReminders() {
 
     if (!to) {
       console.warn(
-        `[Cheqify] Sin correo configurado para "${companyName}". Define ${specificEnvKey} o FALLBACK_NOTIFY_EMAIL. Saltando...`
+        `[Cheqify] No hay correo configurado para ${companyName}.`
       );
       continue;
     }
 
-    // 3.2 Construir correo (usa tu template HTML)
     const template = dailyDepositsTemplate({
       companyName,
       depositDate: now.plus({ days: 1 }).toJSDate(),
@@ -103,19 +83,19 @@ export async function runDepositReminders() {
       })),
     });
 
-    // 3.3 Enviar correo
-    await sendMail({ to, subject: template.subject, html: template.html });
+    await sendMail({
+      to,
+      subject: template.subject,
+      html: template.html,
+    });
 
-    // 3.4 Marcar cheques del grupo como notificados
     await Cheque.updateMany(
       { _id: { $in: lista.map((c: any) => c._id) } },
       { $set: { reminderSent: true, reminderSentAt: new Date() } }
     );
 
     sent += 1;
-    console.log(
-      `[Cheqify] Correo enviado a "${companyName}" (${to}) con ${lista.length} cheque(s).`
-    );
+    console.log(`[Cheqify] Correo enviado a ${companyName} → ${to}`);
   }
 
   return { found: cheques.length, groups: porEmpresa.size, sent };

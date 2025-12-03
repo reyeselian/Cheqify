@@ -9,6 +9,8 @@ import { verifyPassword } from "./controllers/Auth";
 import configRoutes from "./routes/configRoutes";
 import "./jobs"; // esto ejecuta el cron automáticamente
 import adminRoutes from "./routes/adminRoutes";
+import testEmailRoute from "./routes/testEmail";
+
 
 // Cargar variables del .env
 dotenv.config();
@@ -25,6 +27,8 @@ app.use("/api/auth", authRoutes);
 router.post("/verify-password", verifyPassword);
 app.use("/api/config", configRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/test-email", testEmailRoute);
+
 
 
 // Prueba rápida
