@@ -19,6 +19,6 @@ export async function sendMail({
   subject: string;
   html: string;
 }) {
-  const from = process.env.MAIL_FROM || "Cheqify <no-reply@cheqify.app>";
+  const from = process.env.MAIL_FROM || "cheqify.notificaciones@gmail.com.app>";
   return transporter.sendMail({ from, to, subject, html });
 }
