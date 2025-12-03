@@ -12,7 +12,7 @@ export interface ICheque extends Document {
   notas?: string;
   imagen?: string;
   usuario: mongoose.Schema.Types.ObjectId; // referencia al usuario que registró el cheque
-  company: string;                         // ✅ ahora guarda el nombre de la empresa
+  company: string;                         // ✅ guarda el nombre de la empresa (STRING)
   reminderSent?: boolean;                  // si ya se envió el recordatorio
   reminderSentAt?: Date;                   // fecha en que se envió el recordatorio
 }
@@ -37,7 +37,7 @@ const chequeSchema = new Schema<ICheque>(
       required: true,
     },
 
-    // 🔹 Nombre de la empresa propietaria del cheque
+    // 🔹 Nombre de la empresa propietaria del cheque (STRING, no ObjectId)
     company: {
       type: String,
       required: true,
