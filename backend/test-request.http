@@ -1,0 +1,3 @@
+### 🚀 Test manual de recordatorios Cheqify
+POST http://localhost:5000/api/admin/test-reminder
+Content-Type: application/json
