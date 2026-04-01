@@ -1,4 +1,4 @@
-// src/routes/admin.routes.ts
+// src/routes/Admin.routes.ts
 import { Router } from "express";
 import {
   adminLogin,
@@ -12,6 +12,8 @@ import {
   adminCreatePlan,
   adminUpdatePlan,
   adminTogglePlan,
+  getIngresos,
+  setPrecioPersonalizado,
 } from "../controllers/Admincontroller";
 import { requireAdmin } from "../middleware/Adminmiddleware";
 
@@ -26,12 +28,16 @@ router.use(requireAdmin);
 // Dashboard
 router.get("/stats", getDashboardStats);
 
+// Ingresos
+router.get("/ingresos", getIngresos);
+
 // Usuarios
-router.get("/users",              listUsers);
-router.get("/users/:id",          getUserById);
-router.patch("/users/:id",        updateUser);
-router.patch("/users/:id/block",  toggleBlockUser);
-router.delete("/users/:id",       deleteUser);
+router.get("/users",                    listUsers);
+router.get("/users/:id",                getUserById);
+router.patch("/users/:id",              updateUser);
+router.patch("/users/:id/block",        toggleBlockUser);
+router.patch("/users/:id/precio",       setPrecioPersonalizado);
+router.delete("/users/:id",             deleteUser);
 
 // Planes
 router.get("/plans",              adminGetPlans);

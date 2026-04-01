@@ -1,4 +1,4 @@
-// src/controllers/adminController.ts
+// src/controllers/Admincontroller.ts
 import { Request, Response } from "express";
 import jwt, { Secret } from "jsonwebtoken";
 import { User } from "../models/User";
@@ -10,38 +10,20 @@ const generateToken = (id: string): string =>
 
 /* =========================================================
    🔐 ADMIN LOGIN
-   POST /api/admin/login
 ========================================================= */
 export const adminLogin = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      res.status(400).json({ message: "Correo y contraseña son obligatorios" });
-      return;
-    }
+    if (!email || !password) { res.status(400).json({ message: "Correo y contraseña son obligatorios" }); return; }
 
     const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user || user.role !== "admin") {
-      res.status(401).json({ message: "Credenciales incorrectas o sin permisos de administrador" });
-      return;
-    }
+    if (!user || user.role !== "admin") { res.status(401).json({ message: "Credenciales incorrectas o sin permisos de administrador" }); return; }
 
     const isMatch = await user.matchPassword(password);
-    if (!isMatch) {
-      res.status(401).json({ message: "Credenciales incorrectas o sin permisos de administrador" });
-      return;
-    }
+    if (!isMatch) { res.status(401).json({ message: "Credenciales incorrectas o sin permisos de administrador" }); return; }
 
     const token = generateToken((user._id as any).toString());
-
-    res.status(200).json({
-      _id:    user._id,
-      email:  user.email,
-      empresa: user.empresa,
-      role:   user.role,
-      token,
-    });
+    res.status(200).json({ _id: user._id, email: user.email, empresa: user.empresa, role: user.role, token });
   } catch (err) {
     console.error("Admin login error:", err);
     res.status(500).json({ message: "Error al iniciar sesión" });
@@ -50,32 +32,19 @@ export const adminLogin = async (req: Request, res: Response): Promise<void> => 
 
 /* =========================================================
    📊 DASHBOARD STATS
-   GET /api/admin/stats
 ========================================================= */
 export const getDashboardStats = async (req: Request, res: Response): Promise<void> => {
   try {
-    const [
-      totalUsers,
-      activeUsers,
-      trialUsers,
-      expiredUsers,
-      totalPlans,
-      totalCheques,
-      recentUsers,
-    ] = await Promise.all([
+    const [totalUsers, activeUsers, trialUsers, expiredUsers, totalPlans, totalCheques, recentUsers] = await Promise.all([
       User.countDocuments({ role: "user" }),
       User.countDocuments({ role: "user", status: "active" }),
       User.countDocuments({ role: "user", status: "trial" }),
       User.countDocuments({ role: "user", status: { $in: ["trial_expired", "payment_required", "blocked"] } }),
       Plan.countDocuments({ isActive: true }),
       Cheque.countDocuments(),
-      User.find({ role: "user" })
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .select("empresa email plan status registeredAt"),
+      User.find({ role: "user" }).sort({ createdAt: -1 }).limit(5).select("empresa email plan status registeredAt"),
     ]);
 
-    // Revenue estimate: count active monthly + annual users
     const [monthlyCount, annualCount] = await Promise.all([
       User.countDocuments({ role: "user", plan: "monthly", status: "active" }),
       User.countDocuments({ role: "user", plan: "annual",  status: "active" }),
@@ -83,7 +52,7 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
 
     const [monthlyPlan, annualPlan] = await Promise.all([
       Plan.findOne({ type: "monthly" }),
-      Plan.findOne({ type: "annual" }),
+      Plan.findOne({ type: "annual"  }),
     ]);
 
     const estimatedRevenue =
@@ -91,8 +60,8 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
       (annualCount  * (annualPlan?.price  ?? 0));
 
     res.json({
-      users: { total: totalUsers, active: activeUsers, trial: trialUsers, expired: expiredUsers },
-      plans: { total: totalPlans },
+      users:   { total: totalUsers, active: activeUsers, trial: trialUsers, expired: expiredUsers },
+      plans:   { total: totalPlans },
       cheques: { total: totalCheques },
       revenue: { estimated: estimatedRevenue, monthly: monthlyCount, annual: annualCount },
       recentUsers,
@@ -104,8 +73,149 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
 };
 
 /* =========================================================
+   💰 INGRESOS — resumen por usuario
+   GET /api/admin/ingresos
+========================================================= */
+export const getIngresos = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const page   = Math.max(1, parseInt(req.query.page  as string) || 1);
+    const limit  = Math.min(100, parseInt(req.query.limit as string) || 20);
+    const search = (req.query.search as string)?.trim() || "";
+
+    const filter: any = { role: "user", status: "active" };
+    if (search) filter.$or = [
+      { email:   { $regex: search, $options: "i" } },
+      { empresa: { $regex: search, $options: "i" } },
+    ];
+
+    const [users, total] = await Promise.all([
+      User.find(filter)
+        .select("empresa email plan planRef status planExpiresAt registeredAt customPrice customDiscount customPriceNote")
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate("planRef", "name price type"),
+      User.countDocuments(filter),
+    ]);
+
+    // Obtener precios de planes
+    const [monthlyPlan, annualPlan] = await Promise.all([
+      Plan.findOne({ type: "monthly" }),
+      Plan.findOne({ type: "annual"  }),
+    ]);
+
+    const planPrices: Record<string, number> = {
+      monthly: monthlyPlan?.price ?? 0,
+      annual:  annualPlan?.price  ?? 0,
+      trial:   0,
+    };
+
+    // Calcular ingreso real por usuario
+    const ingresos = users.map((u: any) => {
+      const precioBase = planPrices[u.plan] ?? 0;
+      let precioFinal  = precioBase;
+
+      if (u.customPrice !== null && u.customPrice !== undefined) {
+        precioFinal = u.customPrice;
+      } else if (u.customDiscount !== null && u.customDiscount !== undefined) {
+        precioFinal = precioBase * (1 - u.customDiscount / 100);
+      }
+
+      return {
+        _id:            u._id,
+        empresa:        u.empresa,
+        email:          u.email,
+        plan:           u.plan,
+        status:         u.status,
+        planExpiresAt:  u.planExpiresAt,
+        registeredAt:   u.registeredAt,
+        precioBase,
+        customPrice:    u.customPrice,
+        customDiscount: u.customDiscount,
+        customPriceNote: u.customPriceNote,
+        precioFinal,
+        tieneDescuento: u.customPrice !== null || u.customDiscount !== null,
+      };
+    });
+
+    // Totales del mes actual
+    const now       = new Date();
+    const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1);
+    const usuariosActivosMes = await User.countDocuments({
+      role: "user", status: "active",
+      $or: [{ registeredAt: { $gte: inicioMes } }, { planExpiresAt: { $gte: inicioMes } }],
+    });
+
+    const totalMensual = ingresos.reduce((sum, u) => sum + (u.plan === "monthly" ? u.precioFinal : 0), 0);
+    const totalAnual   = ingresos.reduce((sum, u) => sum + (u.plan === "annual"  ? u.precioFinal : 0), 0);
+    const totalGeneral = totalMensual + totalAnual;
+
+    res.json({
+      ingresos,
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+      resumen: {
+        totalMensual,
+        totalAnual,
+        totalGeneral,
+        usuariosActivos: total,
+        usuariosActivosMes,
+      },
+    });
+  } catch (err) {
+    console.error("Ingresos error:", err);
+    res.status(500).json({ message: "Error al obtener ingresos" });
+  }
+};
+
+/* =========================================================
+   💲 ASIGNAR PRECIO PERSONALIZADO
+   PATCH /api/admin/users/:id/precio
+========================================================= */
+export const setPrecioPersonalizado = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { customPrice, customDiscount, customPriceNote } = req.body;
+    const user = await User.findById(req.params.id);
+    if (!user) { res.status(404).json({ message: "Usuario no encontrado" }); return; }
+
+    // Validaciones
+    if (customPrice !== undefined && customPrice !== null) {
+      if (typeof customPrice !== "number" || customPrice < 0) {
+        res.status(400).json({ message: "El precio personalizado debe ser un número positivo" });
+        return;
+      }
+      user.customPrice    = customPrice;
+      user.customDiscount = null; // mutuamente exclusivos
+    } else if (customDiscount !== undefined && customDiscount !== null) {
+      if (typeof customDiscount !== "number" || customDiscount < 0 || customDiscount > 100) {
+        res.status(400).json({ message: "El descuento debe ser entre 0 y 100" });
+        return;
+      }
+      user.customDiscount = customDiscount;
+      user.customPrice    = null; // mutuamente exclusivos
+    } else {
+      // Limpiar precio personalizado
+      user.customPrice    = null;
+      user.customDiscount = null;
+    }
+
+    user.customPriceNote = customPriceNote?.trim() || null;
+    await user.save();
+
+    res.json({ message: "Precio personalizado actualizado", user: {
+      _id: user._id,
+      customPrice: user.customPrice,
+      customDiscount: user.customDiscount,
+      customPriceNote: user.customPriceNote,
+    }});
+  } catch (err: any) {
+    res.status(500).json({ message: "Error al actualizar precio", error: err.message });
+  }
+};
+
+/* =========================================================
    👥 LIST USERS
-   GET /api/admin/users?page=1&limit=20&search=&status=&plan=
 ========================================================= */
 export const listUsers = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -124,12 +234,7 @@ export const listUsers = async (req: Request, res: Response): Promise<void> => {
     if (plan)   filter.plan   = plan;
 
     const [users, total] = await Promise.all([
-      User.find(filter)
-        .select("-password")
-        .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .populate("planRef", "name price"),
+      User.find(filter).select("-password").sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).populate("planRef", "name price"),
       User.countDocuments(filter),
     ]);
 
@@ -141,7 +246,6 @@ export const listUsers = async (req: Request, res: Response): Promise<void> => {
 
 /* =========================================================
    👤 GET USER BY ID
-   GET /api/admin/users/:id
 ========================================================= */
 export const getUserById = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -154,8 +258,7 @@ export const getUserById = async (req: Request, res: Response): Promise<void> =>
 };
 
 /* =========================================================
-   ✏️ UPDATE USER  (plan, status, empresa, email)
-   PATCH /api/admin/users/:id
+   ✏️ UPDATE USER
 ========================================================= */
 export const updateUser = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -165,10 +268,7 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
       if (req.body[key] !== undefined) updates[key] = req.body[key];
     }
 
-    const user = await User.findByIdAndUpdate(req.params.id, updates, {
-      new: true, runValidators: true,
-    }).select("-password");
-
+    const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true }).select("-password");
     if (!user) { res.status(404).json({ message: "Usuario no encontrado" }); return; }
     res.json({ message: "Usuario actualizado", user });
   } catch (err: any) {
@@ -178,17 +278,14 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
 
 /* =========================================================
    🚫 BLOCK / UNBLOCK USER
-   PATCH /api/admin/users/:id/block
 ========================================================= */
 export const toggleBlockUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) { res.status(404).json({ message: "Usuario no encontrado" }); return; }
     if (user.role === "admin") { res.status(400).json({ message: "No puedes bloquear a otro admin" }); return; }
-
     user.status = user.status === "blocked" ? "active" : "blocked";
     await user.save();
-
     res.json({ message: `Usuario ${user.status === "blocked" ? "bloqueado" : "desbloqueado"}`, status: user.status });
   } catch (err) {
     res.status(500).json({ message: "Error al cambiar estado del usuario" });
@@ -197,7 +294,6 @@ export const toggleBlockUser = async (req: Request, res: Response): Promise<void
 
 /* =========================================================
    🗑️ DELETE USER
-   DELETE /api/admin/users/:id
 ========================================================= */
 export const deleteUser = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -212,12 +308,7 @@ export const deleteUser = async (req: Request, res: Response): Promise<void> => 
 };
 
 /* =========================================================
-   📋 PLAN CRUD  (re-exposes planController logic for admin)
-   GET    /api/admin/plans
-   POST   /api/admin/plans
-   PUT    /api/admin/plans/:id
-   PATCH  /api/admin/plans/:id/toggle
-   DELETE /api/admin/plans/:id
+   📋 PLAN CRUD
 ========================================================= */
 export const adminGetPlans = async (_req: Request, res: Response): Promise<void> => {
   try {
@@ -243,7 +334,6 @@ export const adminUpdatePlan = async (req: Request, res: Response): Promise<void
     const allowed = ["name", "price", "durationDays", "trialDays", "description", "features", "isActive"];
     const updates: any = {};
     for (const k of allowed) if (req.body[k] !== undefined) updates[k] = req.body[k];
-
     const plan = await Plan.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true });
     if (!plan) { res.status(404).json({ message: "Plan no encontrado" }); return; }
     res.json({ success: true, data: plan });

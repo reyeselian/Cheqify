@@ -1,7 +1,7 @@
 // src/services/emailService.ts
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const getResend = () => new Resend(process.env.RESEND_API_KEY);
 
 const FROM_EMAIL = "Cheqify <noreply@cheqify.com>";
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5174";
@@ -15,6 +15,7 @@ export const sendVerificationEmail = async (
   token: string
 ): Promise<void> => {
   const verifyUrl = `${CLIENT_URL}/verify-email?token=${token}`;
+  const resend = getResend();
 
   await resend.emails.send({
     from: FROM_EMAIL,
@@ -92,6 +93,7 @@ export const sendDepositReminderEmail = async (
   }).format(depositDate);
 
   const totalMonto = cheques.reduce((sum, c) => sum + c.monto, 0);
+  const resend = getResend();
 
   const filasHTML = cheques.map((c) => `
     <tr>

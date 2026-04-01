@@ -25,6 +25,11 @@ export interface IUser extends Document {
   emailVerificationToken: string | null;
   emailVerificationExpires: Date | null;
 
+  // ── Precio personalizado ──────────────────────────
+  customPrice: number | null;           // precio fijo personalizado
+  customDiscount: number | null;        // descuento en % (0-100)
+  customPriceNote: string | null;       // mensaje que ve el usuario
+
   matchPassword(entered: string): Promise<boolean>;
 }
 
@@ -35,10 +40,8 @@ const userSchema = new Schema<IUser>(
     empresa:  { type: String, required: true, trim: true },
     company:  { type: mongoose.Schema.Types.ObjectId, ref: "Company" },
 
-    // ── Role ─────────────────────────────────────────
     role: { type: String, enum: ["user", "admin"], default: "user" },
 
-    // ── Plan ─────────────────────────────────────────
     planRef:       { type: mongoose.Schema.Types.ObjectId, ref: "Plan", required: true },
     plan:          { type: String, enum: ["trial","monthly","annual"], default: "trial" },
     trialDays:     { type: Number, default: 14 },
@@ -47,10 +50,14 @@ const userSchema = new Schema<IUser>(
     planCycle:     { type: Number, default: 0 },
     status:        { type: String, enum: ["trial","trial_expired","active","payment_required","blocked"], default: "trial" },
 
-    // ── Email verification ────────────────────────────
     isEmailVerified:          { type: Boolean, default: false },
     emailVerificationToken:   { type: String, default: null },
     emailVerificationExpires: { type: Date,   default: null },
+
+    // ── Precio personalizado ──────────────────────────
+    customPrice:    { type: Number, default: null },
+    customDiscount: { type: Number, default: null, min: 0, max: 100 },
+    customPriceNote:{ type: String, default: null, trim: true },
   },
   { timestamps: true }
 );

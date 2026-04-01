@@ -349,17 +349,20 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
     const secret = process.env.JWT_SECRET as Secret;
     const decoded = jwt.verify(token, secret) as { id: string };
 
-    const user = await User.findById(decoded.id).select("status planExpiresAt plan trialDays");
+    const user = await User.findById(decoded.id).select("status planExpiresAt plan trialDays customPrice customDiscount customPriceNote");
     if (!user) {
       res.status(404).json({ message: "Usuario no encontrado" });
       return;
     }
 
     res.status(200).json({
-      status:       user.status,
-      plan:         user.plan,
-      trialDays:    user.trialDays,
-      planExpiresAt: user.planExpiresAt,
+      status:          (user as any).status,
+      plan:            (user as any).plan,
+      trialDays:       (user as any).trialDays,
+      planExpiresAt:   (user as any).planExpiresAt,
+      customPrice:     (user as any).customPrice     ?? null,
+      customDiscount:  (user as any).customDiscount  ?? null,
+      customPriceNote: (user as any).customPriceNote ?? null,
     });
   } catch (error) {
     res.status(401).json({ message: "Token inválido" });
