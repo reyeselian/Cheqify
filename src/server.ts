@@ -11,7 +11,7 @@ import { verifyPassword } from "./controllers/Auth";
 import configRoutes from "./routes/configRoutes";
 import "./jobs";
 import testEmailRoute from "./routes/testEmail";
-import planRoutes from "./routes/planRoutes"; // ✅ Planes
+import planRoutes from "./routes/planRoutes";
 import adminRoutes from "./routes/Admin.routes";
 dotenv.config();
 
@@ -27,10 +27,21 @@ app.use("/api/auth", authRoutes);
 router.post("/verify-password", verifyPassword);
 app.use("/api/config", configRoutes);
 app.use("/api/test-email", testEmailRoute);
-app.use("/api/plans", planRoutes); // ✅
+app.use("/api/plans", planRoutes);
 
 // Prueba rápida
 app.get("/", (_req, res) => res.send("Servidor Cheqify activo"));
+
+// ── TEST: ejecutar recordatorio manualmente (quitar en producción) ──
+app.get("/api/test-reminder", async (_req, res) => {
+  try {
+    const { runDepositReminders } = await import("./jobs/depositReminders");
+    const result = await runDepositReminders();
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // Middleware de errores
 app.use(errorHandler);
