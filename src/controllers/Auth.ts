@@ -335,6 +335,38 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
 };
 
 /* =========================================================
+   👤 GET ME — Devuelve el status actual del usuario
+========================================================= */
+export const getMe = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      res.status(401).json({ message: "Token no proporcionado" });
+      return;
+    }
+
+    const token  = authHeader.split(" ")[1];
+    const secret = process.env.JWT_SECRET as Secret;
+    const decoded = jwt.verify(token, secret) as { id: string };
+
+    const user = await User.findById(decoded.id).select("status planExpiresAt plan trialDays");
+    if (!user) {
+      res.status(404).json({ message: "Usuario no encontrado" });
+      return;
+    }
+
+    res.status(200).json({
+      status:       user.status,
+      plan:         user.plan,
+      trialDays:    user.trialDays,
+      planExpiresAt: user.planExpiresAt,
+    });
+  } catch (error) {
+    res.status(401).json({ message: "Token inválido" });
+  }
+};
+
+/* =========================================================
    🔒 CAMBIAR CONTRASEÑA
 ========================================================= */
 export const changePassword = async (req: Request, res: Response): Promise<void> => {
