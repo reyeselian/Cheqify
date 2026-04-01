@@ -1,3 +1,5 @@
+// src/app.ts
+
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -7,29 +9,25 @@ import authRoutes from "./routes/authRoutes";
 import router from "./routes/authRoutes";
 import { verifyPassword } from "./controllers/Auth";
 import configRoutes from "./routes/configRoutes";
-import "./jobs"; // esto ejecuta el cron automáticamente
-import adminRoutes from "./routes/adminRoutes";
+import "./jobs";
 import testEmailRoute from "./routes/testEmail";
-
-
-// Cargar variables del .env
+import planRoutes from "./routes/planRoutes"; // ✅ Planes
+import adminRoutes from "./routes/Admin.routes";
 dotenv.config();
 
 const app = express();
 
-// Configuración general
 app.use(cors());
 app.use(express.json());
 
 // Rutas
+app.use("/api/admin", adminRoutes);
 app.use("/api/cheques", chequesRouter);
 app.use("/api/auth", authRoutes);
 router.post("/verify-password", verifyPassword);
 app.use("/api/config", configRoutes);
-app.use("/api/admin", adminRoutes);
 app.use("/api/test-email", testEmailRoute);
-
-
+app.use("/api/plans", planRoutes); // ✅
 
 // Prueba rápida
 app.get("/", (_req, res) => res.send("Servidor Cheqify activo"));
@@ -37,5 +35,4 @@ app.get("/", (_req, res) => res.send("Servidor Cheqify activo"));
 // Middleware de errores
 app.use(errorHandler);
 
-// Exportar app
 export default app;
