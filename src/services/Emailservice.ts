@@ -3,7 +3,7 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL = "Cheqify <notificaciones@cheqify.com>";
+const FROM_EMAIL = "Cheqify <noreply@cheqify.com>";
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5174";
 
 /* =========================================================
