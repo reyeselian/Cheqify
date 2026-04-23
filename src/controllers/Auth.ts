@@ -6,7 +6,7 @@ import mongoose, { Document } from "mongoose";
 import crypto from "crypto";
 import { User } from "../models/User";
 import Plan from "../models/Plan";
-import { sendVerificationEmail } from "../services/Emailservice";
+import { sendVerificationEmail, sendPasswordResetEmail } from "../services/Emailservice";
 
 /* =========================================================
    🧩 INTERFAZ
@@ -25,6 +25,8 @@ interface IUserDoc extends Document {
   isEmailVerified: boolean;
   emailVerificationToken: string | null;
   emailVerificationExpires: Date | null;
+  passwordResetToken: string | null;
+  passwordResetExpires: Date | null;
   matchPassword(enteredPassword: string): Promise<boolean>;
 }
 
@@ -349,7 +351,7 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
     const secret = process.env.JWT_SECRET as Secret;
     const decoded = jwt.verify(token, secret) as { id: string };
 
-    const user = await User.findById(decoded.id).select("status planExpiresAt plan trialDays customPrice customDiscount customPriceNote");
+    const user = await User.findById(decoded.id).select("status planExpiresAt plan trialDays registeredAt customPrice customDiscount customPriceNote");
     if (!user) {
       res.status(404).json({ message: "Usuario no encontrado" });
       return;
@@ -359,6 +361,7 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
       status:          (user as any).status,
       plan:            (user as any).plan,
       trialDays:       (user as any).trialDays,
+      registeredAt:    (user as any).registeredAt,
       planExpiresAt:   (user as any).planExpiresAt,
       customPrice:     (user as any).customPrice     ?? null,
       customDiscount:  (user as any).customDiscount  ?? null,
@@ -415,5 +418,80 @@ export const changePassword = async (req: Request, res: Response): Promise<void>
   } catch (error) {
     console.error("Error en changePassword:", error);
     res.status(500).json({ message: "Error al cambiar la contraseña" });
+  }
+};
+
+/* =========================================================
+   📧 FORGOT PASSWORD — Enviar email de recuperación
+   POST /auth/forgot-password
+========================================================= */
+export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+    if (!email) { res.status(400).json({ message: "El correo es obligatorio" }); return; }
+
+    const user = await User.findOne({ email: email.toLowerCase() }) as unknown as IUserDoc | null;
+
+    // Respuesta genérica por seguridad
+    if (!user) {
+      res.status(200).json({ message: "Si el correo existe, recibirás un enlace de recuperación." });
+      return;
+    }
+
+    const resetToken   = crypto.randomBytes(32).toString("hex");
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+
+    user.passwordResetToken   = resetToken;
+    user.passwordResetExpires = resetExpires;
+    await (user as any).save();
+
+    try {
+      await sendPasswordResetEmail(user.email, user.empresa, resetToken);
+    } catch (emailError) {
+      console.error("Error al enviar email de recuperación:", emailError);
+    }
+
+    res.status(200).json({ message: "Si el correo existe, recibirás un enlace de recuperación." });
+  } catch (error) {
+    console.error("Error en forgotPassword:", error);
+    res.status(500).json({ message: "Error al procesar la solicitud" });
+  }
+};
+
+/* =========================================================
+   🔑 RESET PASSWORD — Cambiar contraseña con token
+   POST /auth/reset-password/:token
+========================================================= */
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!token || !password) {
+      res.status(400).json({ message: "Token y contraseña son obligatorios" }); return;
+    }
+    if (password.length < 6) {
+      res.status(400).json({ message: "La contraseña debe tener al menos 6 caracteres" }); return;
+    }
+
+    const user = await User.findOne({
+      passwordResetToken:   token,
+      passwordResetExpires: { $gt: new Date() },
+    }) as unknown as IUserDoc | null;
+
+    if (!user) {
+      res.status(400).json({ message: "El enlace es inválido o ha expirado. Solicita uno nuevo." });
+      return;
+    }
+
+    user.password             = password;
+    user.passwordResetToken   = null;
+    user.passwordResetExpires = null;
+    await (user as any).save();
+
+    res.status(200).json({ message: "✅ Contraseña actualizada correctamente. Ya puedes iniciar sesión." });
+  } catch (error) {
+    console.error("Error en resetPassword:", error);
+    res.status(500).json({ message: "Error al restablecer la contraseña" });
   }
 };

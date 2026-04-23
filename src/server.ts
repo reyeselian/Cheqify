@@ -13,6 +13,7 @@ import "./jobs";
 import testEmailRoute from "./routes/testEmail";
 import planRoutes from "./routes/planRoutes";
 import adminRoutes from "./routes/Admin.routes";
+import planRequestRoutes from "./routes/planRequest.routes";
 dotenv.config();
 
 const app = express();
@@ -28,6 +29,7 @@ router.post("/verify-password", verifyPassword);
 app.use("/api/config", configRoutes);
 app.use("/api/test-email", testEmailRoute);
 app.use("/api/plans", planRoutes);
+app.use("/api/plan-requests", planRequestRoutes);
 
 // Prueba rápida
 app.get("/", (_req, res) => res.send("Servidor Cheqify activo"));

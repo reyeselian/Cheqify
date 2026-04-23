@@ -9,6 +9,8 @@ import {
   verifyEmail,
   resendVerificationEmail,
   getMe,
+  forgotPassword,
+  resetPassword,
 } from "../controllers/Auth";
 
 const router = Router();
@@ -23,5 +25,9 @@ router.get("/me",                    getMe);
 // ── Verificación de email ─────────────────────────────────
 router.get("/verify-email/:token",   verifyEmail);
 router.post("/resend-verification",  resendVerificationEmail);
+
+// ── Recuperación de contraseña ────────────────────────────
+router.post("/forgot-password",      forgotPassword);
+router.post("/reset-password/:token", resetPassword);
 
 export default router;

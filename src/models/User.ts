@@ -25,10 +25,14 @@ export interface IUser extends Document {
   emailVerificationToken: string | null;
   emailVerificationExpires: Date | null;
 
+  // ── Recuperación de contraseña ────────────────────
+  passwordResetToken: string | null;
+  passwordResetExpires: Date | null;
+
   // ── Precio personalizado ──────────────────────────
-  customPrice: number | null;           // precio fijo personalizado
-  customDiscount: number | null;        // descuento en % (0-100)
-  customPriceNote: string | null;       // mensaje que ve el usuario
+  customPrice: number | null;
+  customDiscount: number | null;
+  customPriceNote: string | null;
 
   matchPassword(entered: string): Promise<boolean>;
 }
@@ -54,10 +58,14 @@ const userSchema = new Schema<IUser>(
     emailVerificationToken:   { type: String, default: null },
     emailVerificationExpires: { type: Date,   default: null },
 
+    // ── Recuperación de contraseña ────────────────────
+    passwordResetToken:   { type: String, default: null },
+    passwordResetExpires: { type: Date,   default: null },
+
     // ── Precio personalizado ──────────────────────────
-    customPrice:    { type: Number, default: null },
-    customDiscount: { type: Number, default: null, min: 0, max: 100 },
-    customPriceNote:{ type: String, default: null, trim: true },
+    customPrice:     { type: Number, default: null },
+    customDiscount:  { type: Number, default: null, min: 0, max: 100 },
+    customPriceNote: { type: String, default: null, trim: true },
   },
   { timestamps: true }
 );
