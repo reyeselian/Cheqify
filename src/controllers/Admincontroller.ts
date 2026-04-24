@@ -74,7 +74,6 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
 
 /* =========================================================
    💰 INGRESOS — resumen por usuario
-   GET /api/admin/ingresos
 ========================================================= */
 export const getIngresos = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -98,7 +97,6 @@ export const getIngresos = async (req: Request, res: Response): Promise<void> =>
       User.countDocuments(filter),
     ]);
 
-    // Obtener precios de planes
     const [monthlyPlan, annualPlan] = await Promise.all([
       Plan.findOne({ type: "monthly" }),
       Plan.findOne({ type: "annual"  }),
@@ -110,7 +108,6 @@ export const getIngresos = async (req: Request, res: Response): Promise<void> =>
       trial:   0,
     };
 
-    // Calcular ingreso real por usuario
     const ingresos = users.map((u: any) => {
       const precioBase = planPrices[u.plan] ?? 0;
       let precioFinal  = precioBase;
@@ -122,23 +119,15 @@ export const getIngresos = async (req: Request, res: Response): Promise<void> =>
       }
 
       return {
-        _id:            u._id,
-        empresa:        u.empresa,
-        email:          u.email,
-        plan:           u.plan,
-        status:         u.status,
-        planExpiresAt:  u.planExpiresAt,
-        registeredAt:   u.registeredAt,
-        precioBase,
-        customPrice:    u.customPrice,
-        customDiscount: u.customDiscount,
-        customPriceNote: u.customPriceNote,
-        precioFinal,
+        _id: u._id, empresa: u.empresa, email: u.email,
+        plan: u.plan, status: u.status,
+        planExpiresAt: u.planExpiresAt, registeredAt: u.registeredAt,
+        precioBase, customPrice: u.customPrice, customDiscount: u.customDiscount,
+        customPriceNote: u.customPriceNote, precioFinal,
         tieneDescuento: u.customPrice !== null || u.customDiscount !== null,
       };
     });
 
-    // Totales del mes actual
     const now       = new Date();
     const inicioMes = new Date(now.getFullYear(), now.getMonth(), 1);
     const usuariosActivosMes = await User.countDocuments({
@@ -151,17 +140,8 @@ export const getIngresos = async (req: Request, res: Response): Promise<void> =>
     const totalGeneral = totalMensual + totalAnual;
 
     res.json({
-      ingresos,
-      total,
-      page,
-      pages: Math.ceil(total / limit),
-      resumen: {
-        totalMensual,
-        totalAnual,
-        totalGeneral,
-        usuariosActivos: total,
-        usuariosActivosMes,
-      },
+      ingresos, total, page, pages: Math.ceil(total / limit),
+      resumen: { totalMensual, totalAnual, totalGeneral, usuariosActivos: total, usuariosActivosMes },
     });
   } catch (err) {
     console.error("Ingresos error:", err);
@@ -171,7 +151,6 @@ export const getIngresos = async (req: Request, res: Response): Promise<void> =>
 
 /* =========================================================
    💲 ASIGNAR PRECIO PERSONALIZADO
-   PATCH /api/admin/users/:id/precio
 ========================================================= */
 export const setPrecioPersonalizado = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -179,23 +158,19 @@ export const setPrecioPersonalizado = async (req: Request, res: Response): Promi
     const user = await User.findById(req.params.id);
     if (!user) { res.status(404).json({ message: "Usuario no encontrado" }); return; }
 
-    // Validaciones
     if (customPrice !== undefined && customPrice !== null) {
       if (typeof customPrice !== "number" || customPrice < 0) {
-        res.status(400).json({ message: "El precio personalizado debe ser un número positivo" });
-        return;
+        res.status(400).json({ message: "El precio personalizado debe ser un número positivo" }); return;
       }
       user.customPrice    = customPrice;
-      user.customDiscount = null; // mutuamente exclusivos
+      user.customDiscount = null;
     } else if (customDiscount !== undefined && customDiscount !== null) {
       if (typeof customDiscount !== "number" || customDiscount < 0 || customDiscount > 100) {
-        res.status(400).json({ message: "El descuento debe ser entre 0 y 100" });
-        return;
+        res.status(400).json({ message: "El descuento debe ser entre 0 y 100" }); return;
       }
       user.customDiscount = customDiscount;
-      user.customPrice    = null; // mutuamente exclusivos
+      user.customPrice    = null;
     } else {
-      // Limpiar precio personalizado
       user.customPrice    = null;
       user.customDiscount = null;
     }
@@ -204,10 +179,8 @@ export const setPrecioPersonalizado = async (req: Request, res: Response): Promi
     await user.save();
 
     res.json({ message: "Precio personalizado actualizado", user: {
-      _id: user._id,
-      customPrice: user.customPrice,
-      customDiscount: user.customDiscount,
-      customPriceNote: user.customPriceNote,
+      _id: user._id, customPrice: user.customPrice,
+      customDiscount: user.customDiscount, customPriceNote: user.customPriceNote,
     }});
   } catch (err: any) {
     res.status(500).json({ message: "Error al actualizar precio", error: err.message });
@@ -266,6 +239,16 @@ export const updateUser = async (req: Request, res: Response): Promise<void> => 
     const updates: any = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
+    }
+
+    // ✅ Si el admin cambia el plan a monthly/annual y no especificó status,
+    // forzar status = "active" para evitar que quede bloqueado por la lógica de trial
+    if (
+      updates.plan &&
+      ["monthly", "annual"].includes(updates.plan) &&
+      !updates.status
+    ) {
+      updates.status = "active";
     }
 
     const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true }).select("-password");

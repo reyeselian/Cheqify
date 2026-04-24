@@ -359,8 +359,11 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
 
     // ── Calcular status dinámicamente si el trial venció ────
     let currentStatus = (user as any).status;
+    const userPlan    = (user as any).plan;
 
-    if (currentStatus === "trial") {
+    // Solo calcular vencimiento si el plan ES trial y el status aún dice "trial"
+    // Usuarios con plan monthly/annual NUNCA deben ser afectados por esta lógica
+    if (currentStatus === "trial" && userPlan === "trial") {
       const registeredAt = new Date((user as any).registeredAt);
       const trialDays    = (user as any).trialDays ?? 14;
       const trialExpires = new Date(registeredAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
@@ -374,6 +377,7 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
     }
 
     res.status(200).json({
+      _id:             (user as any)._id,
       status:          currentStatus,
       plan:            (user as any).plan,
       trialDays:       (user as any).trialDays,
