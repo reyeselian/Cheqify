@@ -357,8 +357,24 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // ── Calcular status dinámicamente si el trial venció ────
+    let currentStatus = (user as any).status;
+
+    if (currentStatus === "trial") {
+      const registeredAt = new Date((user as any).registeredAt);
+      const trialDays    = (user as any).trialDays ?? 14;
+      const trialExpires = new Date(registeredAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
+      const now          = new Date();
+
+      if (now > trialExpires) {
+        currentStatus = "trial_expired";
+        // Actualizar en BD para que quede persistido
+        await User.findByIdAndUpdate(decoded.id, { status: "trial_expired" });
+      }
+    }
+
     res.status(200).json({
-      status:          (user as any).status,
+      status:          currentStatus,
       plan:            (user as any).plan,
       trialDays:       (user as any).trialDays,
       registeredAt:    (user as any).registeredAt,
