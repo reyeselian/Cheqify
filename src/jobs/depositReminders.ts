@@ -10,11 +10,21 @@ export async function runDepositReminders() {
   const now    = DateTime.now().setZone(TZ);
   const manana = now.plus({ days: 1 });
 
-  // Buscar en UTC completo del día siguiente para cubrir cualquier hora que se guarde el cheque
-  const start = DateTime.utc(manana.year, manana.month, manana.day, 0, 0, 0).toJSDate();
-  const end   = DateTime.utc(manana.year, manana.month, manana.day, 23, 59, 59).toJSDate();
+  // ✅ Calcular el rango usando la zona horaria local de Santo Domingo
+  // Evita el bug donde UTC avanzado hace que "mañana" se calcule mal
+  const startLocal = DateTime.fromObject(
+    { year: manana.year, month: manana.month, day: manana.day, hour: 0, minute: 0, second: 0 },
+    { zone: TZ }
+  );
+  const endLocal = DateTime.fromObject(
+    { year: manana.year, month: manana.month, day: manana.day, hour: 23, minute: 59, second: 59 },
+    { zone: TZ }
+  );
 
-  console.log(`[Cheqify] Buscando cheques para el ${manana.toFormat("dd/MM/yyyy")}...`);
+  const start = startLocal.toUTC().toJSDate();
+  const end   = endLocal.toUTC().toJSDate();
+
+  console.log(`[Cheqify] Buscando cheques para el ${manana.toFormat("dd/MM/yyyy")} (hora Santo Domingo)...`);
   console.log(`[Cheqify] Rango UTC: ${start.toISOString()} → ${end.toISOString()}`);
 
   const cheques = await Cheque.find({
@@ -30,7 +40,6 @@ export async function runDepositReminders() {
 
   console.log(`[Cheqify] ${cheques.length} cheque(s) encontrado(s).`);
 
-  // Agrupar por usuario
   const porUsuario = new Map<string, typeof cheques>();
   for (const ch of cheques) {
     const userId = ch.usuario.toString();
